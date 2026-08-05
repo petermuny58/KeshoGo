@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------
+   Fonts
+   - Glowstore is a licensed, single-weight commercial display font.
+     Drop Glowstore-Regular.woff2 / .woff / .ttf into /public/fonts/ and
+     this @font-face will pick it up automatically — nothing else to change.
+     Until then, Poppins (Google Fonts) stands in, per the approved fallback stack.
+   - Merriweather is the body/editorial face, loaded from Google Fonts.
+------------------------------------------------------------------------ */
+@font-face {
+  font-family: "Glowstore";
+  src:
+    url("/fonts/Glowstore-Regular.woff2") format("woff2"),
+    url("/fonts/Glowstore-Regular.woff") format("woff"),
+    url("/fonts/Glowstore-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@500;600;700&display=swap");
+
+@theme {
+  /* Brand colors — sampled from the KeshoGo logo */
+  --color-primary: #34584c;
+  --color-primary-dark: #253f36;
+  --color-secondary: #ff8313;
+  --color-secondary-light: #fda868;
+  --color-secondary-ink: #b85813; /* text/icon-safe variant: 4.73:1 on white vs. raw secondary's 2.47:1 */
+  --color-graphite: #333333;
+  --color-graphite-muted: #6b6b6b;
+  --color-surface: #fafaf8;
+  --color-surface-dim: #f2f1ed;
+  --color-border-soft: #e8e8e4;
+  --color-success: #34584c;
+  --color-error: #c1443a;
+  --color-warning: #e0a030;
+  --color-star: #b8810f; /* rating-star fill: warning itself is 2.27:1 on white (fails); this clears 3.4:1 */
+
+  /* Fonts */
+  --font-display: "Glowstore", "Poppins", system-ui, sans-serif;
+  --font-body: "Merriweather", Georgia, serif;
+  --font-sans: "Poppins", system-ui, sans-serif;
+
+  /* Match the spec's custom breakpoints (sm=640, lg=1024 are already Tailwind defaults) */
+  --breakpoint-xl: 1440px;
+
+  /* Signature shadow scale — quiet, consistent elevation */
+  --shadow-card: 0 1px 2px rgba(51, 51, 51, 0.06), 0 1px 8px rgba(51, 51, 51, 0.05);
+  --shadow-float: 0 8px 24px rgba(51, 51, 51, 0.14);
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-surface text-graphite antialiased;
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    overscroll-behavior-y: contain;
+  }
+
+  ::selection {
+    background: var(--color-secondary-light);
+    color: var(--color-primary-dark);
+  }
+
+  /* Visible, on-brand focus ring everywhere — never remove focus outlines */
+  :focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Respect reduced-motion preferences globally */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
