@@ -75,7 +75,7 @@ ordersRoute.get('/:orderId', requireAuth, requireSeller, async (c) => {
     throw new HTTPException(404, { message: 'Order not found.' });
   }
 
-  const order = items[0].order;
+  const order = items[0]!.order;
   const sellerSubtotalNgwee = items.reduce((sum, i) => sum + i.lineTotalNgwee, 0);
 
   return c.json({ order, items, sellerSubtotalNgwee });

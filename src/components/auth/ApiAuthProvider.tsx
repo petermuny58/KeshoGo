@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { ClerkProvider, useAuth } from '@clerk/clerk-react';
-import { ui } from '@clerk/ui';
 import { setApiTokenGetter } from '../../lib/api';
 import { clerkAppearance } from './clerkAppearance';
 
@@ -24,7 +23,6 @@ export function ApiAuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
       publishableKey={publishableKey}
-      ui={ui}
       appearance={clerkAppearance}
       signInUrl="/login"
       signUpUrl="/signup"
