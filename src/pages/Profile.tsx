@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import {
   UserCircle2, Package, MapPin, CreditCard, Heart, Languages, Store,
   ChevronRight, Check, Plus, LogOut,
@@ -71,19 +72,36 @@ export function Profile() {
         </button>
       </div>
 
-      <Link
-        to="/create-store"
-        className="mt-3 flex items-center gap-3 rounded-2xl bg-primary p-4 text-white transition-colors hover:bg-primary-dark"
-      >
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-          <Store size={20} />
-        </span>
-        <span className="flex-1">
-          <span className="block text-sm font-semibold">Open your own store</span>
-          <span className="block text-xs text-white/80">Start selling to shoppers across Zambia — free to start</span>
-        </span>
-        <ChevronRight size={18} />
-      </Link>
+      <SignedIn>
+        <Link
+          to="/dashboard"
+          className="mt-3 flex items-center gap-3 rounded-2xl bg-primary p-4 text-white transition-colors hover:bg-primary-dark"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+            <Store size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-semibold">Go to your store dashboard</span>
+            <span className="block text-xs text-white/80">Manage listings, orders, and earnings.</span>
+          </span>
+          <ChevronRight size={18} />
+        </Link>
+      </SignedIn>
+      <SignedOut>
+        <Link
+          to="/create-store"
+          className="mt-3 flex items-center gap-3 rounded-2xl bg-primary p-4 text-white transition-colors hover:bg-primary-dark"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
+            <Store size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-semibold">Open your own store</span>
+            <span className="block text-xs text-white/80">Start selling to shoppers across Zambia — free to start</span>
+          </span>
+          <ChevronRight size={18} />
+        </Link>
+      </SignedOut>
 
       <div className="scrollbar-none mt-5 flex gap-2 overflow-x-auto">
         {TABS.map((tab) => (

@@ -173,6 +173,10 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
       setStoreName(name);
       setCreatedSlug(store.slug);
       setSubmitted(true);
+
+      if (isSignedIn) {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setError(err.message);

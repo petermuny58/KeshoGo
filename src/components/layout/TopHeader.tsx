@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import { Heart, ShoppingCart, Clapperboard, TrendingUp, Store } from 'lucide-react';
 import { Logo } from '../common/Logo';
 import { AuthControls } from '../auth/AuthControls';
@@ -45,14 +46,26 @@ export function TopHeader() {
           </div>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2 lg:ml-0">
-            <Link
-              to="/create-store"
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-xs font-semibold text-graphite shadow-sm transition-colors hover:bg-secondary-light sm:h-10 sm:px-3.5 sm:text-sm"
-            >
-              <Store size={16} className="shrink-0" aria-hidden />
-              <span className="sm:hidden">Sell</span>
-              <span className="hidden sm:inline">Create store</span>
-            </Link>
+            <SignedIn>
+              <Link
+                to="/dashboard"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-xs font-semibold text-graphite shadow-sm transition-colors hover:bg-secondary-light sm:h-10 sm:px-3.5 sm:text-sm"
+              >
+                <Store size={16} className="shrink-0" aria-hidden />
+                <span className="sm:hidden">Store</span>
+                <span className="hidden sm:inline">My store</span>
+              </Link>
+            </SignedIn>
+            <SignedOut>
+              <Link
+                to="/create-store"
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-xs font-semibold text-graphite shadow-sm transition-colors hover:bg-secondary-light sm:h-10 sm:px-3.5 sm:text-sm"
+              >
+                <Store size={16} className="shrink-0" aria-hidden />
+                <span className="sm:hidden">Sell</span>
+                <span className="hidden sm:inline">Create store</span>
+              </Link>
+            </SignedOut>
             <Link
               to="/profile?tab=wishlist"
               aria-label={`Wishlist, ${wishlistIds.length} items`}
