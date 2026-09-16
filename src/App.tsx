@@ -16,6 +16,14 @@ import { StorePage } from './pages/StorePage';
 import { CreateStore } from './pages/CreateStore';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
+import { SellerShell } from './components/layout/SellerShell';
+import { DashboardOverview } from './pages/dashboard/DashboardOverview';
+import { SellerProducts } from './pages/dashboard/SellerProducts';
+import { SellerOrders } from './pages/dashboard/SellerOrders';
+import { SellerEarnings } from './pages/dashboard/SellerEarnings';
+import { SellerAnalytics } from './pages/dashboard/SellerAnalytics';
+import { SellerReviews } from './pages/dashboard/SellerReviews';
+import { SellerSettings } from './pages/dashboard/SellerSettings';
 
 function NotFound() {
   return (
@@ -34,8 +42,8 @@ function NotFound() {
 export function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<SignUp />} />
+      <Route path="/login/*" element={<Login />} />
+      <Route path="/signup/*" element={<SignUp />} />
 
       <Route element={<PageShell />}>
         <Route path="/" element={<Home />} />
@@ -51,6 +59,16 @@ export function App() {
         <Route path="/store/:slug" element={<StorePage />} />
         <Route path="/create-store" element={<CreateStore />} />
         <Route path="*" element={<NotFound />} />
+      </Route>
+
+      <Route path="/dashboard" element={<SellerShell />}>
+        <Route index element={<DashboardOverview />} />
+        <Route path="products" element={<SellerProducts />} />
+        <Route path="orders" element={<SellerOrders />} />
+        <Route path="earnings" element={<SellerEarnings />} />
+        <Route path="analytics" element={<SellerAnalytics />} />
+        <Route path="reviews" element={<SellerReviews />} />
+        <Route path="settings" element={<SellerSettings />} />
       </Route>
     </Routes>
   );

@@ -1,14 +1,14 @@
+@import url("https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@500;600;700&display=swap");
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------
    Fonts
-   - Glowstore is a licensed, single-weight commercial display font.
-     Drop Glowstore-Regular.woff2 / .woff / .ttf into /public/fonts/ and
-     this @font-face will pick it up automatically — nothing else to change.
-     Until then, Poppins (Google Fonts) stands in, per the approved fallback stack.
+   - Glowstore is a licensed display font. When you have the files, drop
+     Glowstore-Regular.woff2 (and optionally .woff / .ttf) into /public/fonts/
+     and uncomment the @font-face below. Until then Poppins is the display face.
    - Merriweather is the body/editorial face, loaded from Google Fonts.
 ------------------------------------------------------------------------ */
-@font-face {
+/* @font-face {
   font-family: "Glowstore";
   src:
     url("/fonts/Glowstore-Regular.woff2") format("woff2"),
@@ -17,9 +17,7 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-}
-
-@import url("https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Poppins:wght@500;600;700&display=swap");
+} */
 
 @theme {
   /* Brand colors — sampled from the KeshoGo logo */
@@ -72,8 +70,8 @@
     color: var(--color-primary-dark);
   }
 
-  /* Visible, on-brand focus ring everywhere — never remove focus outlines */
-  :focus-visible {
+  /* Visible, on-brand focus ring — skip Clerk roots so we don't hit their structural CSS */
+  :focus-visible:not(:where(.cl-rootBox, .cl-rootBox *)) {
     outline: 2px solid var(--color-secondary);
     outline-offset: 2px;
     border-radius: 2px;

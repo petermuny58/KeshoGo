@@ -1,0 +1,442 @@
+// KeshoGo — Prisma schema
+// Postgres (Neon). Money is stored as Int in ngwee (1 ZMW = 100 ngwee) —
+// never Float/Decimal for currency, to avoid floating-point rounding drift.
+//
+// Prisma 7+: the datasource has no `url` here — connection config lives in
+// prisma.config.ts (schema/migrations use DIRECT_URL) and the runtime
+// PrismaClient is built with a driver adapter using the pooled DATABASE_URL
+// (see src/db.ts). See README.md for why.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------ //
+// Enums
+// ------------------------------------------------------------------ //
+
+enum StoreStatus {
+  PENDING // applied to sell, not yet approved
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductStatus {
+  DRAFT // seller is still editing, not visible in the marketplace
+  ACTIVE
+  ARCHIVED // seller took it down; order history referencing it must survive
+}
+
+enum ProductBadge {
+  SALE
+  NEW
+  BESTSELLER
+  // "low stock" is intentionally NOT a stored badge — it's derived from
+  // ProductVariant.stock at read time, so it can never drift out of sync
+  // with the number that actually gates checkout.
+}
+
+enum OrderStatus {
+  PENDING // payment not yet confirmed
+  PROCESSING // paid, seller(s) preparing items
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum FulfillmentStatus {
+  // Per OrderItem, not per Order — a single checkout can span multiple
+  // stores, and each seller fulfills independently.
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  AIRTEL_MONEY
+  MTN_MOMO
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum LedgerEntryType {
+  SALE
+  COMMISSION
+  PAYOUT
+  REFUND
+}
+
+enum PayoutStatus {
+  ACCRUING
+  PROCESSING
+  PAID
+}
+
+// ------------------------------------------------------------------ //
+// Identity
+// ------------------------------------------------------------------ //
+
+// Clerk owns authentication (password, sessions, OTP). This table is the
+// app-side extension of a Clerk identity — created via a `user.created`
+// webhook — and is what every other app table actually relates to.
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  phone     String   @unique
+  email     String?  @unique
+  fullName  String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store          Store?
+  addresses      Address[]
+  orders         Order[]
+  cartItems      CartItem[]
+  wishlistItems  WishlistItem[]
+  reviews        Review[]
+  reelLikes      ReelLike[]
+  storeFollows   StoreFollower[]
+
+  @@index([phone])
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label        String // "Home", "Work"
+  fullName     String
+  phone        String
+  addressLine  String
+  town         String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------ //
+// Sellers
+// ------------------------------------------------------------------ //
+
+model Store {
+  id            String      @id @default(cuid())
+  ownerId       String      @unique // one store per user, for this MVP
+  owner         User        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  slug          String      @unique
+  name          String
+  tagline       String?
+  description   String?
+  bannerUrl     String?
+  logoUrl       String?
+  status        StoreStatus @default(PENDING)
+  verified      Boolean     @default(false)
+  followerCount Int         @default(0) // denormalized cache of StoreFollower rows
+  ratingAvg     Decimal     @default(0) @db.Decimal(2, 1) // denormalized cache of Review rows via Product
+  pacraNumber   String?
+  tpin          String?
+  payoutPhone   String?
+  payoutMethod  PaymentMethod?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  products      Product[]
+  reels         Reel[]
+  orderItems    OrderItem[]
+  followers     StoreFollower[]
+  ledgerEntries SellerLedgerEntry[]
+
+  @@index([status])
+}
+
+model StoreFollower {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([storeId, userId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------ //
+// Catalog
+// ------------------------------------------------------------------ //
+
+model Category {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  name      String
+  icon      String // lucide-react icon name, matches the frontend's icon map
+  sortOrder Int        @default(0)
+  parentId  String? // self-relation, unused today but keeps subcategories possible later without a migration
+  parent    Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CategoryToSubcategory")
+  createdAt DateTime   @default(now())
+
+  products Product[]
+
+  @@index([parentId])
+}
+
+model Product {
+  id                 String         @id @default(cuid())
+  storeId            String
+  store              Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId         String
+  category           Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  slug               String         @unique
+  title              String
+  description        String
+  priceNgwee         Int // base/display price; variants may override
+  originalPriceNgwee Int? // present => "on sale"; discount % is computed, never stored
+  status             ProductStatus  @default(DRAFT)
+  badge              ProductBadge?
+  ratingAvg          Decimal        @default(0) @db.Decimal(2, 1) // denormalized cache of Review rows
+  reviewCount        Int            @default(0) // denormalized cache of Review rows
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime? // soft delete: products get discontinued far more often than whole stores,
+  // and OrderItem snapshots must survive a delete, so this is a flag, not a real row removal.
+
+  images     ProductImage[]
+  variants   ProductVariant[]
+  reviews    Review[]
+  reels      Reel[]
+  cartItems  CartItem[]
+  wishlisted WishlistItem[]
+  orderItems OrderItem[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([title]) // supports prefix/ILIKE lookups and ORDER BY; see README for the
+  // follow-up raw-SQL migration that adds a tsvector + GIN index for real full-text search
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// A real variant table, not loose color/size string arrays — each combination
+// gets its own SKU and its own stock count, which is what checkout actually
+// needs to reserve/decrement correctly (see the Go inventory service).
+model ProductVariant {
+  id               String   @id @default(cuid())
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku              String   @unique
+  color            String? // hex or name
+  size             String?
+  priceNgweeOverride Int?  // null => inherits Product.priceNgwee
+  stock            Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+}
+
+// ------------------------------------------------------------------ //
+// Cart & Wishlist (server-persisted so a logged-in user's cart survives
+// a device switch — matches "production," not just a demo)
+// ------------------------------------------------------------------ //
+
+model CartItem {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int            @default(1)
+  addedAt   DateTime       @default(now())
+
+  @@unique([userId, productId, variantId])
+  @@index([userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------ //
+// Orders — one checkout/payment can span multiple stores, so Order is the
+// payment envelope and OrderItem is what each seller actually fulfills.
+// ------------------------------------------------------------------ //
+
+model Order {
+  id      String @id @default(cuid())
+  buyerId String
+  buyer   User   @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+
+  // Shipping address is SNAPSHOTTED here, not a live FK to Address — an
+  // order must keep showing where it actually shipped even if the buyer
+  // later edits or deletes that saved address.
+  shippingFullName    String
+  shippingPhone       String
+  shippingAddressLine String
+  shippingTown        String
+
+  subtotalNgwee    Int
+  deliveryFeeNgwee Int
+  discountNgwee    Int @default(0)
+  totalNgwee       Int
+
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentReference String? // id from the MoMo/Airtel/Cellulant webhook, for reconciliation
+  orderStatus      OrderStatus   @default(PENDING)
+
+  placedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items   OrderItem[]
+  reviews Review[]
+
+  @@index([buyerId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([placedAt])
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // storeId is denormalized (not just reachable via product) specifically so
+  // "show me my store's sales" is a direct indexed lookup, not a join through
+  // a product that might later be deleted.
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Restrict) // never delete a store with order history
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  // Snapshotted at purchase time — price and title must stay exactly what
+  // the buyer paid for, even if the product changes or is deleted later.
+  titleSnapshot     String
+  unitPriceNgwee    Int
+  quantity          Int
+  lineTotalNgwee    Int
+  fulfillmentStatus FulfillmentStatus @default(PENDING)
+
+  ledgerEntries SellerLedgerEntry[]
+
+  @@index([orderId])
+  @@index([storeId])
+  @@index([productId])
+}
+
+// Seller earnings ledger — every credit/debit is an immutable row so the
+// earnings UI can reconcile against a single source of truth.
+model SellerLedgerEntry {
+  id           String          @id @default(cuid())
+  storeId      String
+  store        Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  orderItemId  String?
+  orderItem    OrderItem?      @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  type         LedgerEntryType
+  amountNgwee  Int // positive = credit to seller, negative = debit
+  description  String
+  payoutStatus PayoutStatus    @default(ACCRUING)
+  createdAt    DateTime        @default(now())
+
+  @@index([storeId])
+  @@index([createdAt])
+}
+
+// ------------------------------------------------------------------ //
+// Reviews
+// ------------------------------------------------------------------ //
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String? // present => eligible for a "Verified Purchase" badge
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rating    Int // 1-5; enforce the range with a CHECK constraint (see migration note in README)
+  comment   String
+  sellerReply String?
+  repliedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, userId]) // one review per buyer per product
+  @@index([productId])
+}
+
+// ------------------------------------------------------------------ //
+// Reels — no comments, per product decision: just video + likes.
+// ------------------------------------------------------------------ //
+
+model Reel {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  videoUrl     String // Cloudflare R2 object URL
+  thumbnailUrl String?
+  caption      String?
+  likeCount    Int      @default(0) // denormalized cache of ReelLike rows — see README
+  createdAt    DateTime @default(now())
+
+  likes ReelLike[]
+
+  @@index([storeId])
+  @@index([createdAt])
+}
+
+model ReelLike {
+  id        String   @id @default(cuid())
+  reelId    String
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([reelId, userId])
+  @@index([userId])
+}

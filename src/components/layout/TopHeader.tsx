@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingCart, UserCircle2, Clapperboard, TrendingUp } from 'lucide-react';
+import { Heart, ShoppingCart, Clapperboard, TrendingUp, Store } from 'lucide-react';
 import { Logo } from '../common/Logo';
+import { AuthControls } from '../auth/AuthControls';
 import { SearchBar } from '../common/SearchBar';
 import { CategoryMegaMenu } from './CategoryMegaMenu';
 import { CategoryPill } from '../common/CategoryPill';
@@ -43,7 +44,15 @@ export function TopHeader() {
             </nav>
           </div>
 
-          <div className="ml-auto flex items-center gap-1 lg:ml-0">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2 lg:ml-0">
+            <Link
+              to="/create-store"
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-secondary px-3 text-xs font-semibold text-graphite shadow-sm transition-colors hover:bg-secondary-light sm:h-10 sm:px-3.5 sm:text-sm"
+            >
+              <Store size={16} className="shrink-0" aria-hidden />
+              <span className="sm:hidden">Sell</span>
+              <span className="hidden sm:inline">Create store</span>
+            </Link>
             <Link
               to="/profile?tab=wishlist"
               aria-label={`Wishlist, ${wishlistIds.length} items`}
@@ -66,13 +75,9 @@ export function TopHeader() {
                 </span>
               )}
             </Link>
-            <Link
-              to="/profile"
-              aria-label="Account"
-              className="hidden h-10 w-10 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 lg:flex"
-            >
-              <UserCircle2 size={20} />
-            </Link>
+            <div className="flex items-center gap-1">
+              <AuthControls />
+            </div>
           </div>
         </div>
 
