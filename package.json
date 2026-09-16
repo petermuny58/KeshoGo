@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "prisma generate && tsc -b && vite build",
-    "postinstall": "prisma generate",
+    "postinstall": "node -e \"if(process.env.DIRECT_URL||process.env.DATABASE_URL){require('child_process').spawnSync('prisma',['generate'],{stdio:'inherit'})}else{console.log('Skipping prisma generate (no DIRECT_URL/DATABASE_URL)')}\"",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "api:dev": "tsx watch src/server/index.ts",
