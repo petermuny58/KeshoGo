@@ -122,7 +122,18 @@ const mockSellerApi = {
   getEarningsHistory: (page = 1) => delay({ entries: [], total: 0 }),
   getAnalytics: (range = '6m') => delay({ profitSeries: [], buyerSeries: [], topProducts: [] }),
   updateProfile: (body: unknown) => delay(undefined),
-  getProfile: () => delay(undefined),
+  getProfile: () =>
+    delay({
+      name: 'Mock Store',
+      tagline: null,
+      description: null,
+      bannerUrl: null,
+      logoUrl: null,
+      pacraNumber: null,
+      tpin: null,
+      payoutPhone: null,
+      payoutMethod: null,
+    }),
   presignUpload: (filename: string, contentType: string, folder: 'products' | 'store' = 'products') =>
     delay({ key: 'mock/key', uploadUrl: null, publicUrl: '/public/mock-product.png', devMode: true }),
   listCategories: () => delay([{ id: 'cat_mock', slug: 'mock', name: 'Mock' }]),
@@ -187,7 +198,18 @@ const realSellerApi = {
 
   updateProfile: (body: unknown) => apiFetch('/api/seller/profile', { method: 'PATCH', body: JSON.stringify(body) }),
 
-  getProfile: () => apiFetch('/api/seller/profile'),
+  getProfile: () =>
+    apiFetch<{
+      name: string;
+      tagline: string | null;
+      description: string | null;
+      bannerUrl: string | null;
+      logoUrl: string | null;
+      pacraNumber: string | null;
+      tpin: string | null;
+      payoutPhone: string | null;
+      payoutMethod: string | null;
+    }>('/api/seller/profile'),
 
   presignUpload: (filename: string, contentType: string, folder: 'products' | 'store' = 'products') =>
     apiFetch<{ key: string; uploadUrl: string | null; publicUrl: string; devMode: boolean }>(
