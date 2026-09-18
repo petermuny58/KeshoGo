@@ -1,12 +1,20 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp } from 'lucide-react';
-import { products } from '../data/products';
-import { EDIT_COLLECTIONS, TRENDING_SEARCHES } from '../data/trending';
+import { TRENDING_SEARCHES } from '../data/trending';
 import { ProductCard } from '../components/product/ProductCard';
+import { catalogApi, type CatalogProduct } from '../lib/catalog-api';
 
 export function Trends() {
   const navigate = useNavigate();
-  const trendingProducts = [...products].sort((a, b) => b.rating * b.reviewCount - a.rating * a.reviewCount).slice(0, 12);
+  const [trendingProducts, setTrendingProducts] = useState<CatalogProduct[]>([]);
+
+  useEffect(() => {
+    catalogApi
+      .listProducts({ sort: 'rating', limit: 12 })
+      .then((data) => setTrendingProducts(data.products))
+      .catch(() => setTrendingProducts([]));
+  }, []);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -18,16 +26,20 @@ export function Trends() {
 
       <section className="mb-9">
         <h2 className="mb-3 text-base font-semibold text-graphite">Trending products</h2>
-        <div className="scrollbar-none -mx-4 flex gap-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          {trendingProducts.map((product) => (
-            <div key={product.id} className="w-36 shrink-0 sm:w-44">
-              <ProductCard product={product} />
-            </div>
-          ))}
-        </div>
+        {trendingProducts.length === 0 ? (
+          <p className="text-sm text-graphite-muted">No live products yet.</p>
+        ) : (
+          <div className="scrollbar-none -mx-4 flex gap-3 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            {trendingProducts.map((product) => (
+              <div key={product.id} className="w-36 shrink-0 sm:w-44">
+                <ProductCard product={product} />
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
-      <section className="mb-9">
+      <section className="mb-9 pb-6">
         <h2 className="mb-3 text-base font-semibold text-graphite">Trending searches</h2>
         <div className="flex flex-wrap gap-2">
           {TRENDING_SEARCHES.map((term) => (
@@ -41,25 +53,6 @@ export function Trends() {
             </button>
           ))}
         </div>
-      </section>
-
-      <section className="flex flex-col gap-10 pb-6">
-        {EDIT_COLLECTIONS.map((edit) => {
-          const editProducts = edit.productIds
-            .map((id) => products.find((p) => p.id === id))
-            .filter((p): p is (typeof products)[number] => Boolean(p));
-          return (
-            <div key={edit.id}>
-              <h2 className="font-display text-xl font-semibold text-graphite">{edit.title}</h2>
-              <p className="mt-1.5 max-w-xl font-body text-sm leading-relaxed text-graphite-muted">{edit.description}</p>
-              <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-                {editProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </section>
     </div>
   );

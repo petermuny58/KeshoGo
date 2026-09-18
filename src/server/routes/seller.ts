@@ -8,6 +8,7 @@ import { earningsRoute } from './earnings.js';
 import { analyticsRoute } from './analytics.js';
 import { profileRoute } from './profile.js';
 import { reviewsRoute } from './reviews.js';
+import { sellerReelsRoute } from './seller-reels.js';
 import type { AppVariables } from '../middleware/auth.js';
 
 /** All seller-facing routes live under `/api/seller/*` behind requireSeller. */
@@ -22,3 +23,4 @@ sellerRoute.route('/earnings', earningsRoute);
 sellerRoute.route('/analytics', analyticsRoute);
 sellerRoute.route('/profile', profileRoute);
 sellerRoute.route('/reviews', reviewsRoute);
+sellerRoute.route('/reels', sellerReelsRoute);

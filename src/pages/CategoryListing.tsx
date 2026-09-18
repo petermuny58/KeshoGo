@@ -1,16 +1,43 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ChevronRight, SlidersHorizontal } from 'lucide-react';
-import { getCategoryBySlug, categories } from '../data/categories';
-import { getProductsByCategory } from '../data/products';
 import { ProductGrid } from '../components/product/ProductGrid';
 import { FilterDrawer, type ProductFilters } from '../components/common/FilterDrawer';
 import { sortProducts } from '../utils/sort';
+import { catalogApi, type CatalogCategory, type CatalogProduct } from '../lib/catalog-api';
 
 export function CategoryListing() {
   const { slug = '' } = useParams();
-  const category = getCategoryBySlug(slug);
-  const allProducts = useMemo(() => (category ? getProductsByCategory(category.slug) : []), [category]);
+  const [category, setCategory] = useState<CatalogCategory | null>(null);
+  const [allProducts, setAllProducts] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+    Promise.all([catalogApi.listCategories(), catalogApi.listProducts({ category: slug, limit: 60 })])
+      .then(([cats, prods]) => {
+        if (cancelled) return;
+        const match = cats.categories.find((c) => c.slug === slug) ?? null;
+        if (!match) {
+          setNotFound(true);
+          return;
+        }
+        setCategory(match);
+        setAllProducts(prods.products);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   const priceCeiling = useMemo(
     () => Math.max(100, ...allProducts.map((p) => p.price), 0),
@@ -29,14 +56,15 @@ export function CategoryListing() {
     sizes: [],
   });
 
-  // The route component persists across /category/:slug changes (same route
-  // pattern), so filters must reset explicitly when the category — and
-  // therefore its price ceiling and size options — changes underneath it.
   useEffect(() => {
     setFilters({ sortBy: 'featured', maxPrice: priceCeiling, minRating: 0, sizes: [] });
-  }, [category?.slug, priceCeiling]);
+  }, [slug, priceCeiling]);
 
-  if (!category) {
+  if (loading) {
+    return <div className="px-6 py-16 text-center text-sm text-graphite-muted">Loading category…</div>;
+  }
+
+  if (notFound || !category) {
     return <Navigate to="/categories" replace />;
   }
 
@@ -52,20 +80,17 @@ export function CategoryListing() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1 text-xs text-graphite-muted">
-        <Link to="/" className="hover:text-primary">Home</Link>
+        <Link to="/" className="hover:text-primary">
+          Home
+        </Link>
         <ChevronRight size={12} />
         <span className="text-graphite">{category.name}</span>
       </nav>
 
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-            <category.icon size={19} className="text-primary" />
-          </span>
-          <div>
-            <h1 className="text-lg font-semibold text-graphite sm:text-xl">{category.name}</h1>
-            <p className="text-xs text-graphite-muted">{sorted.length} products</p>
-          </div>
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-graphite">{category.name}</h1>
+          <p className="text-sm text-graphite-muted">{sorted.length} products</p>
         </div>
         <button
           type="button"
@@ -75,24 +100,6 @@ export function CategoryListing() {
           <SlidersHorizontal size={15} />
           Filters
         </button>
-      </div>
-
-      {/* related category quick-switch */}
-      <div className="scrollbar-none mb-5 flex gap-2 overflow-x-auto">
-        {categories.map((cat) => (
-          <Link
-            key={cat.id}
-            to={`/category/${cat.slug}`}
-            className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${
-              cat.slug === category.slug
-                ? 'border-primary bg-primary text-white'
-                : 'border-border-soft text-graphite hover:bg-surface-dim'
-            }`}
-          >
-            <cat.icon size={14} />
-            {cat.name}
-          </Link>
-        ))}
       </div>
 
       <div className="flex gap-6">
@@ -105,13 +112,8 @@ export function CategoryListing() {
           availableSizes={availableSizes}
           resultCount={sorted.length}
         />
-
         <div className="min-w-0 flex-1 pb-6">
-          <ProductGrid
-            products={sorted}
-            emptyTitle="No matches in this category yet"
-            emptyDescription="Try widening your price range or clearing a filter."
-          />
+          <ProductGrid products={sorted} emptyTitle="No products in this category yet" />
         </div>
       </div>
     </div>

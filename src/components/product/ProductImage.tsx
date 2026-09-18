@@ -8,35 +8,33 @@ interface ProductImageProps {
   productId: string;
   categorySlug: string;
   imageIndex?: number;
+  src?: string | null;
   className?: string;
   iconClassName?: string;
 }
 
 /**
- * Renders real, category-matched product photography (sourced from Unsplash,
- * free-to-use license — see src/data/productImages.ts). The mock catalog's
- * SKUs are fictional, so photos are assigned deterministically per product
- * from a curated per-category pool rather than being an exact match to each
- * invented product name. If a photo fails to load (or a category has no
- * pool yet), this falls back to a soft brand-tinted tile with the category
- * icon, so the UI never shows a broken image.
+ * Renders real product photography when `src` is provided (API/R2), otherwise
+ * category-matched Unsplash placeholders for the mock catalog.
  */
 export function ProductImage({
   productId,
   categorySlug,
   imageIndex = 0,
+  src,
   className = '',
   iconClassName = '',
 }: ProductImageProps) {
   const category = getCategoryBySlug(categorySlug);
-  const photoId = getProductPhotoId(categorySlug, productId, imageIndex);
+  const photoId = src ? null : getProductPhotoId(categorySlug, productId, imageIndex);
   const [imgFailed, setImgFailed] = useState(false);
+  const imageSrc = src || (photoId ? buildImageUrl(photoId) : null);
 
-  if (photoId && !imgFailed) {
+  if (imageSrc && !imgFailed) {
     return (
       <div className={`overflow-hidden ${className}`}>
         <img
-          src={buildImageUrl(photoId)}
+          src={imageSrc}
           alt={category?.name ?? 'Product photo'}
           loading="lazy"
           className="h-full w-full object-cover"

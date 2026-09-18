@@ -27,9 +27,26 @@ async function authHeaders(): Promise<HeadersInit> {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+  const url = path.startsWith('http') ? path : `${base}${path}`;
+
+  // Inject a dev impersonation header for local development so the
+  // backend's `x-dev-clerk-id` dev flow works when calling from the
+  // browser. Only active in dev builds and when mocks are disabled.
+  const devHeader: Record<string, string> = {};
+  try {
+    const isDev = import.meta.env.DEV;
+    const useMock = import.meta.env.VITE_USE_MOCK_SELLER_API === '1';
+    if (isDev && !useMock) {
+      devHeader['x-dev-clerk-id'] = 'dev_user_1';
+    }
+  } catch {
+    /* ignore when running outside browser build */
+  }
+
+  const res = await fetch(url, {
     ...init,
-    headers: { ...(await authHeaders()), ...init?.headers },
+    headers: { ...(await authHeaders()), ...devHeader, ...init?.headers },
     credentials: 'include',
   });
 

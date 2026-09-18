@@ -1,24 +1,62 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal, Search, Clock, TrendingUp, X } from 'lucide-react';
-import { searchProducts } from '../data/products';
+import { Link, useSearchParams } from 'react-router-dom';
+import { SlidersHorizontal, Search, Clock, TrendingUp, X, Store as StoreIcon } from 'lucide-react';
 import { ProductGrid } from '../components/product/ProductGrid';
 import { FilterDrawer, type ProductFilters } from '../components/common/FilterDrawer';
 import { sortProducts } from '../utils/sort';
 import { useSearchHistory } from '../context/SearchHistoryContext';
 import { TRENDING_SEARCHES } from '../data/trending';
+import { catalogApi, type CatalogProduct, type CatalogStore } from '../lib/catalog-api';
+import { searchProducts } from '../data/products';
 
 export function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') ?? '';
   const { recentSearches, addSearch, clearHistory } = useSearchHistory();
 
+  const [stores, setStores] = useState<CatalogStore[]>([]);
+  const [apiProducts, setApiProducts] = useState<CatalogProduct[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     if (query.trim()) addSearch(query);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const results = useMemo(() => searchProducts(query), [query]);
+  useEffect(() => {
+    if (!query.trim()) {
+      setStores([]);
+      setApiProducts(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    catalogApi
+      .search(query.trim())
+      .then((data) => {
+        if (cancelled) return;
+        setStores(data.stores);
+        setApiProducts(data.products);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Fall back to mock product search if API is down
+        setStores([]);
+        setApiProducts(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  const results = useMemo(() => {
+    if (apiProducts) return apiProducts;
+    return searchProducts(query);
+  }, [apiProducts, query]);
+
   const priceCeiling = useMemo(() => Math.max(100, ...results.map((p) => p.price), 0), [results]);
   const availableSizes = useMemo(() => Array.from(new Set(results.flatMap((p) => p.sizes))).sort(), [results]);
 
@@ -30,9 +68,6 @@ export function SearchResults() {
     sizes: [],
   });
 
-  // The route component persists across query changes (same /search route),
-  // so filters must reset explicitly whenever the query — and therefore the
-  // result set's price ceiling and size options — changes underneath it.
   useEffect(() => {
     setFilters({ sortBy: 'featured', maxPrice: priceCeiling, minRating: 0, sizes: [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,6 +144,7 @@ export function SearchResults() {
           <Search size={16} className="text-graphite-muted" />
           <span>
             Results for <span className="font-semibold">&ldquo;{query}&rdquo;</span>
+            {loading ? <span className="ml-2 text-graphite-muted">…</span> : null}
           </span>
           <button
             type="button"
@@ -129,6 +165,38 @@ export function SearchResults() {
         </button>
       </div>
 
+      {stores.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-graphite">Stores</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {stores.map((store) => (
+              <li key={store.id}>
+                <Link
+                  to={`/store/${store.slug}`}
+                  className="flex items-center gap-3 rounded-2xl border border-border-soft bg-white p-3 transition-colors hover:bg-surface-dim"
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10">
+                    {store.logoUrl || store.bannerUrl ? (
+                      <img
+                        src={store.logoUrl || store.bannerUrl || ''}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <StoreIcon size={20} className="text-primary" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-graphite">{store.name}</span>
+                    <span className="block truncate text-xs text-graphite-muted">{store.tagline || 'Shop this store'}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="flex gap-6">
         <FilterDrawer
           open={drawerOpen}
@@ -140,6 +208,7 @@ export function SearchResults() {
           resultCount={sorted.length}
         />
         <div className="min-w-0 flex-1 pb-6">
+          <h2 className="mb-3 text-sm font-semibold text-graphite">Products</h2>
           <ProductGrid
             products={sorted}
             emptyTitle={`Nothing found for "${query}"`}

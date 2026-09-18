@@ -14,6 +14,7 @@ interface StoreProfile {
   tpin: string | null;
   payoutPhone: string | null;
   payoutMethod: string | null;
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED';
 }
 
 export function SellerSettings() {
@@ -26,6 +27,9 @@ export function SellerSettings() {
   const [payoutPhone, setPayoutPhone] = useState('');
   const [payoutMethod, setPayoutMethod] = useState('MTN_MOMO');
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<StoreProfile['status']>('PENDING');
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +45,8 @@ export function SellerSettings() {
         setPayoutPhone(profile.payoutPhone ?? '');
         setPayoutMethod(profile.payoutMethod ?? 'MTN_MOMO');
         setBannerPreview(profile.bannerUrl);
+        setBannerUrl(profile.bannerUrl);
+        setStatus(profile.status);
       })
       .catch(() => {});
   }, []);
@@ -48,38 +54,54 @@ export function SellerSettings() {
   async function handleBannerChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadingBanner(true);
     try {
       const presign = await sellerApi.presignUpload(file.name, file.type, 'store');
       if (presign.uploadUrl) {
-        await fetch(presign.uploadUrl, {
+        const put = await fetch(presign.uploadUrl, {
           method: 'PUT',
           body: file,
           headers: { 'Content-Type': file.type },
         });
+        if (!put.ok) throw new Error('Banner upload failed. Check R2 configuration.');
+      } else if (presign.devMode) {
+        showToast('R2 not configured — using placeholder banner URL', 'default');
       }
       setBannerPreview(presign.publicUrl);
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setBannerPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      setBannerUrl(presign.publicUrl);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Banner upload failed', 'error');
+    } finally {
+      setUploadingBanner(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!bannerUrl || !/^https?:\/\//i.test(bannerUrl)) {
+      showToast('Upload a store banner before saving', 'error');
+      return;
+    }
     setSaving(true);
     try {
-      await sellerApi.updateProfile({
+      const updated = await sellerApi.updateProfile({
         name: storeName,
         tagline,
         description,
-        bannerUrl: bannerPreview ?? undefined,
+        bannerUrl,
         pacraNumber: pacraNumber || undefined,
         tpin: tpin || undefined,
         payoutPhone: payoutPhone || undefined,
         payoutMethod,
       });
-      showToast('Settings saved', 'success');
+      setStatus(updated.status);
+      showToast(
+        updated.status === 'ACTIVE'
+          ? 'Settings saved — your store is live and searchable'
+          : 'Settings saved — add payout details and a banner to go live',
+        'success',
+      );
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Save failed', 'error');
     } finally {
@@ -89,9 +111,22 @@ export function SellerSettings() {
 
   return (
     <div className="mx-auto max-w-4xl p-6 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-graphite">Store Settings</h1>
-        <p className="text-sm text-graphite-muted">Update your store&apos;s public profile and payout details.</p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-graphite">Store Settings</h1>
+          <p className="text-sm text-graphite-muted">Update your store&apos;s public profile and payout details.</p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            status === 'ACTIVE'
+              ? 'bg-primary/10 text-primary'
+              : status === 'SUSPENDED'
+                ? 'bg-error/10 text-error'
+                : 'bg-surface-dim text-graphite-muted'
+          }`}
+        >
+          {status === 'ACTIVE' ? 'Live & searchable' : status === 'SUSPENDED' ? 'Suspended' : 'Pending — complete profile to go live'}
+        </span>
       </div>
 
       <form onSubmit={(e) => void handleSave(e)} className="space-y-6">
@@ -100,7 +135,8 @@ export function SellerSettings() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="group relative flex h-48 w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-border-soft bg-surface-dim transition-colors hover:bg-surface-dim/80"
+            disabled={uploadingBanner}
+            className="group relative flex h-48 w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-border-soft bg-surface-dim transition-colors hover:bg-surface-dim/80 disabled:opacity-60"
           >
             {bannerPreview ? (
               <>
@@ -108,14 +144,14 @@ export function SellerSettings() {
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                   <span className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-md">
                     <ImagePlus size={18} />
-                    Change Banner
+                    {uploadingBanner ? 'Uploading…' : 'Change Banner'}
                   </span>
                 </div>
               </>
             ) : (
               <span className="flex flex-col items-center gap-2 text-graphite-muted">
                 <ImagePlus size={24} />
-                <span className="text-sm font-medium">Upload a store banner</span>
+                <span className="text-sm font-medium">{uploadingBanner ? 'Uploading…' : 'Upload a store banner'}</span>
               </span>
             )}
           </button>
@@ -163,9 +199,12 @@ export function SellerSettings() {
 
         <div className="rounded-2xl border border-border-soft bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-graphite">Business &amp; Payout</h2>
+          <p className="mb-4 text-sm text-graphite-muted">
+            Required to go live: payout phone + method, plus a banner. PACRA and TPIN are optional.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-graphite-muted">PACRA Number</span>
+              <span className="mb-1.5 block text-sm font-medium text-graphite-muted">PACRA Number (optional)</span>
               <input
                 type="text"
                 value={pacraNumber}
@@ -174,7 +213,7 @@ export function SellerSettings() {
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-graphite-muted">TPIN</span>
+              <span className="mb-1.5 block text-sm font-medium text-graphite-muted">TPIN (optional)</span>
               <input
                 type="text"
                 value={tpin}
@@ -208,7 +247,7 @@ export function SellerSettings() {
         <div className="flex justify-end pt-4">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploadingBanner}
             className="rounded-full bg-primary px-8 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-dark disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save Changes'}

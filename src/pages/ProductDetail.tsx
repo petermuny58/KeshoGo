@@ -1,9 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Heart, Minus, Plus, ShoppingBag, Store as StoreIcon, ChevronRight, ShieldCheck, Truck } from 'lucide-react';
-import { getProductBySlug, getRelatedProducts } from '../data/products';
-import { getStoreById } from '../data/stores';
-import { getCategoryBySlug } from '../data/categories';
 import { ProductImage } from '../components/product/ProductImage';
 import { ProductGrid } from '../components/product/ProductGrid';
 import { StarRating } from '../components/common/StarRating';
@@ -12,14 +9,19 @@ import { formatZmw } from '../utils/currency';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
+import { catalogApi, type CatalogProduct, type CatalogProductDetail } from '../lib/catalog-api';
 
 export function ProductDetail() {
   const { slug = '' } = useParams();
-  const product = getProductBySlug(slug);
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { showToast } = useToast();
+
+  const [product, setProduct] = useState<CatalogProductDetail | null>(null);
+  const [related, setRelated] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   const [activeImage, setActiveImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
@@ -27,16 +29,46 @@ export function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [variantWarning, setVariantWarning] = useState(false);
 
-  const related = useMemo(() => (product ? getRelatedProducts(product, 8) : []), [product]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+    catalogApi
+      .getProduct(slug)
+      .then((data) => {
+        if (cancelled) return;
+        setProduct(data.product);
+        setRelated(data.related);
+        setActiveImage(0);
+        setSelectedColor(undefined);
+        setSelectedSize(undefined);
+        setQuantity(1);
+      })
+      .catch(() => {
+        if (!cancelled) setNotFound(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
-  if (!product) {
+  if (loading) {
+    return <div className="px-6 py-20 text-center text-sm text-graphite-muted">Loading product…</div>;
+  }
+
+  if (notFound || !product) {
     return <Navigate to="/" replace />;
   }
 
-  const category = getCategoryBySlug(product.categorySlug);
-  const store = getStoreById(product.storeId);
+  const store = product.store;
   const wishlisted = isWishlisted(product.id);
-  const needsVariant = (product.colors.length > 0 && !selectedColor) || (product.sizes.length > 0 && !selectedSize);
+  const needsVariant =
+    (product.colors.length > 0 && !selectedColor) || (product.sizes.length > 0 && !selectedSize);
+  const imageCount = Math.max(1, product.images?.length || product.imageCount);
+  const activeSrc = product.images?.[activeImage]?.url ?? product.imageUrl;
 
   function handleAddToCart(andCheckout = false) {
     if (needsVariant) {
@@ -44,7 +76,12 @@ export function ProductDetail() {
       return;
     }
     setVariantWarning(false);
-    addToCart(product!.id, quantity, selectedColor, selectedSize);
+    const variant = product!.variants.find(
+      (v) =>
+        (selectedColor ? v.color === selectedColor : true) &&
+        (selectedSize ? v.size === selectedSize : true),
+    );
+    addToCart(product!.id, quantity, selectedColor, selectedSize, variant?.id);
     if (andCheckout) {
       navigate('/checkout');
     } else {
@@ -56,25 +93,25 @@ export function ProductDetail() {
     <div className="pb-28 lg:pb-10">
       <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
         <nav aria-label="Breadcrumb" className="mb-3 hidden items-center gap-1 text-xs text-graphite-muted lg:flex">
-          <Link to="/" className="hover:text-primary">Home</Link>
+          <Link to="/" className="hover:text-primary">
+            Home
+          </Link>
           <ChevronRight size={12} />
-          {category && (
-            <>
-              <Link to={`/category/${category.slug}`} className="hover:text-primary">{category.name}</Link>
-              <ChevronRight size={12} />
-            </>
-          )}
+          <Link to={`/category/${product.categorySlug}`} className="hover:text-primary">
+            {product.categorySlug}
+          </Link>
+          <ChevronRight size={12} />
           <span className="text-graphite">{product.title}</span>
         </nav>
 
         <div className="grid gap-8 lg:grid-cols-2">
-          {/* Gallery */}
           <div>
             <div className="relative aspect-square w-full overflow-hidden rounded-2xl">
               <ProductImage
                 productId={product.id}
                 categorySlug={product.categorySlug}
                 imageIndex={activeImage}
+                src={activeSrc}
                 className="h-full w-full"
                 iconClassName="h-1/4 w-1/4"
               />
@@ -98,7 +135,7 @@ export function ProductDetail() {
             </div>
 
             <div className="mt-3 flex gap-2.5 overflow-x-auto">
-              {Array.from({ length: product.imageCount }).map((_, i) => (
+              {Array.from({ length: imageCount }).map((_, i) => (
                 <button
                   key={i}
                   type="button"
@@ -113,6 +150,7 @@ export function ProductDetail() {
                     productId={product.id}
                     categorySlug={product.categorySlug}
                     imageIndex={i}
+                    src={product.images?.[i]?.url ?? product.imageUrl}
                     className="h-full w-full"
                     iconClassName="h-1/3 w-1/3"
                   />
@@ -121,9 +159,8 @@ export function ProductDetail() {
             </div>
           </div>
 
-          {/* Info */}
           <div>
-            {category && <p className="text-xs font-medium uppercase tracking-wide text-graphite-muted">{category.name}</p>}
+            <p className="text-xs font-medium uppercase tracking-wide text-graphite-muted">{product.categorySlug}</p>
             <h1 className="mt-1 text-xl font-semibold text-graphite sm:text-2xl">{product.title}</h1>
             <div className="mt-2">
               <StarRating rating={product.rating} reviewCount={product.reviewCount} />
@@ -232,7 +269,6 @@ export function ProductDetail() {
               <span className="text-xs text-graphite-muted">{product.stock} in stock</span>
             </div>
 
-            {/* Desktop CTA row */}
             <div className="mt-6 hidden gap-3 lg:flex">
               <button
                 type="button"
@@ -264,13 +300,11 @@ export function ProductDetail() {
               </div>
             </div>
 
-            {/* Description */}
             <div className="mt-7 border-t border-border-soft pt-6">
               <h2 className="mb-2 text-base font-semibold text-graphite">Product Details</h2>
               <p className="font-body text-sm leading-relaxed text-graphite">{product.description}</p>
             </div>
 
-            {/* Reviews */}
             {product.reviews.length > 0 && (
               <div className="mt-7 border-t border-border-soft pt-6">
                 <h2 className="mb-3 text-base font-semibold text-graphite">
@@ -295,7 +329,6 @@ export function ProductDetail() {
           </div>
         </div>
 
-        {/* You may also like */}
         {related.length > 0 && (
           <section className="mt-12">
             <h2 className="mb-3 font-display text-xl font-semibold text-graphite">You may also like</h2>
@@ -304,7 +337,6 @@ export function ProductDetail() {
         )}
       </div>
 
-      {/* Sticky mobile CTA bar */}
       <div className="safe-bottom fixed inset-x-0 bottom-16 z-30 flex items-center gap-3 border-t border-border-soft bg-white px-4 py-3 lg:hidden">
         <div className="min-w-0">
           <p className="text-xs text-graphite-muted">Total Price</p>

@@ -1,43 +1,63 @@
 import { useEffect, useRef, useState } from 'react';
-import { reels } from '../data/reels';
 import { ReelCard } from '../components/reels/ReelCard';
+import { catalogApi, type CatalogReel } from '../lib/catalog-api';
 
 export function Reels() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [reels, setReels] = useState<CatalogReel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const items = Array.from(container.children) as HTMLElement[];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-            const index = items.indexOf(entry.target as HTMLElement);
-            if (index !== -1) setActiveIndex(index);
-          }
-        });
-      },
-      { root: container, threshold: [0.6] },
-    );
-
-    items.forEach((item) => observer.observe(item));
-    return () => observer.disconnect();
+    catalogApi
+      .listReels()
+      .then((data) => setReels(data.reels))
+      .catch(() => setReels([]))
+      .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      const index = Math.round(el.scrollTop / el.clientHeight);
+      setActiveIndex(index);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [reels.length]);
+
+  if (loading) {
+    return (
+      <div className="flex h-[calc(100dvh-8rem)] items-center justify-center text-sm text-graphite-muted">
+        Loading reels…
+      </div>
+    );
+  }
+
+  if (reels.length === 0) {
+    return (
+      <div className="flex h-[calc(100dvh-8rem)] flex-col items-center justify-center gap-2 px-6 text-center">
+        <p className="text-base font-semibold text-graphite">No reels yet</p>
+        <p className="text-sm text-graphite-muted">When sellers publish short videos, they&apos;ll show up here.</p>
+      </div>
+    );
+  }
+
   return (
-    <div
-      ref={containerRef}
-      className="scrollbar-none h-[calc(100dvh_-_64px_-_64px)] snap-y snap-mandatory overflow-y-auto lg:h-[calc(100dvh_-_113px)]"
-    >
-      {reels.map((reel, i) => (
-        <div key={reel.id} className="h-full w-full snap-start">
-          <ReelCard reel={reel} isActive={i === activeIndex} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
-        </div>
-      ))}
+    <div className="relative mx-auto h-[calc(100dvh-8rem)] max-w-lg">
+      <div
+        ref={containerRef}
+        className="h-full snap-y snap-mandatory overflow-y-scroll scroll-smooth"
+      >
+        {reels.map((reel, i) => (
+          <div key={reel.id} className="h-full w-full snap-start">
+            <ReelCard reel={reel} isActive={i === activeIndex} muted={muted} onToggleMute={() => setMuted((m) => !m)} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

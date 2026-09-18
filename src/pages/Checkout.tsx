@@ -3,7 +3,9 @@ import { Link, Navigate } from 'react-router-dom';
 import { Check, ChevronLeft, CircleCheck, MapPin, CreditCard, ClipboardList, Smartphone } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { ProductImage } from '../components/product/ProductImage';
-import { formatZmw } from '../utils/currency';
+import { formatZmw, formatNgwee } from '../utils/currency';
+import { buyerApi } from '../lib/buyer-api';
+import { useToast } from '../context/ToastContext';
 
 type Step = 'address' | 'payment' | 'review';
 type PaymentMethod = 'airtel' | 'momo' | 'card';
@@ -23,10 +25,13 @@ const STEPS: { key: Step; label: string; icon: typeof MapPin }[] = [
 ];
 
 export function Checkout() {
-  const { linesWithProducts, subtotal, clearCart } = useCart();
+  const { linesWithProducts, subtotal, clearCart, refreshCart } = useCart();
+  const { showToast } = useToast();
   const [step, setStep] = useState<Step>('address');
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const [address, setAddress] = useState<AddressForm>({
     fullName: '',
@@ -53,7 +58,8 @@ export function Checkout() {
         </div>
         <h1 className="mt-4 text-xl font-semibold text-graphite">Order placed</h1>
         <p className="mt-1.5 text-sm text-graphite-muted">
-          Order <span className="font-medium text-graphite">#{orderNumber}</span> is confirmed. You&rsquo;ll get updates by SMS as it&rsquo;s prepared for delivery.
+          Order <span className="font-medium text-graphite">#{orderNumber}</span> is recorded.
+          {paymentNote ? ` ${paymentNote}` : ' You\u2019ll get updates by SMS as it\u2019s prepared for delivery.'}
         </p>
         <Link
           to="/"
@@ -72,10 +78,35 @@ export function Checkout() {
     setStep(target);
   }
 
-  function handlePlaceOrder() {
-    setOrderNumber(String(100000 + Math.floor(Math.random() * 899999)));
-    setOrderPlaced(true);
-    clearCart();
+  async function handlePlaceOrder() {
+    setSubmitting(true);
+    try {
+      const method =
+        paymentMethod === 'airtel' ? 'AIRTEL_MONEY' : paymentMethod === 'momo' ? 'MTN_MOMO' : 'CARD';
+      const result = await buyerApi.createOrder({
+        shippingFullName: address.fullName.trim(),
+        shippingPhone: address.phone.trim(),
+        shippingAddressLine: address.addressLine.trim(),
+        shippingTown: address.town.trim(),
+        paymentMethod: method,
+        paymentPhone: paymentMethod === 'card' ? undefined : momoNumber.trim(),
+      });
+      setOrderNumber(result.order.id.slice(-8).toUpperCase());
+      setPaymentNote(
+        result.order.simulated
+          ? `Payment simulated as ${result.order.paymentStatus} (${formatNgwee(result.order.totalNgwee)}).`
+          : result.order.paymentStatus === 'PENDING'
+            ? 'Complete the Mobile Money prompt on your phone. We will confirm payment via webhook.'
+            : `Total ${formatNgwee(result.order.totalNgwee)}.`,
+      );
+      setOrderPlaced(true);
+      clearCart();
+      void refreshCart();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not place order. Sign in and try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -338,10 +369,11 @@ export function Checkout() {
 
           <button
             type="button"
-            onClick={handlePlaceOrder}
-            className="w-full rounded-full bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-dark"
+            onClick={() => void handlePlaceOrder()}
+            disabled={submitting}
+            className="w-full rounded-full bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-40"
           >
-            Place order
+            {submitting ? 'Placing order…' : 'Place order'}
           </button>
         </div>
       )}

@@ -49,7 +49,7 @@ export function Cart() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-3">
-          {linesWithProducts.map((line) => {
+          {linesWithProducts.filter((l) => l.product).map((line) => {
             const product = line.product!;
             return (
               <div
@@ -60,6 +60,7 @@ export function Cart() {
                   <ProductImage
                     productId={product.id}
                     categorySlug={product.categorySlug}
+                    src={product.imageUrl}
                     className="h-20 w-20 rounded-xl"
                     iconClassName="h-1/3 w-1/3"
                   />

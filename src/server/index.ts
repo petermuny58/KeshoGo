@@ -9,6 +9,10 @@ import { ZodError } from 'zod';
 import { sellerRoute } from './routes/seller.js';
 import { categoriesRoute } from './routes/categories.js';
 import { webhooksRoute } from './routes/webhooks.js';
+import { publicCatalogRoute } from './routes/public-catalog.js';
+import { cartRoute } from './routes/cart.js';
+import { wishlistRoute } from './routes/wishlist.js';
+import { buyerOrdersRoute } from './routes/buyer-orders.js';
 
 const app = new Hono();
 
@@ -33,6 +37,10 @@ app.route('/webhooks', webhooksRoute);
 
 app.route('/api/categories', categoriesRoute);
 app.route('/api/seller', sellerRoute);
+app.route('/api/cart', cartRoute);
+app.route('/api/wishlist', wishlistRoute);
+app.route('/api/orders', buyerOrdersRoute);
+app.route('/api', publicCatalogRoute);
 
 // One consistent error shape for the whole API, so the frontend never has
 // to guess whether an error came from Zod, an HTTPException, or something

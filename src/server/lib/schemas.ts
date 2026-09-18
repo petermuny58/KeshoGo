@@ -4,6 +4,12 @@ import { z } from 'zod';
 // never accepts or returns floats for a price, matching the DB convention.
 const ngwee = z.number().int().nonnegative();
 
+/** Public asset URLs only — reject data: / blob: so we never persist local previews. */
+export const httpUrl = z
+  .string()
+  .url()
+  .refine((u) => /^https?:\/\//i.test(u), 'must be an http(s) URL');
+
 export const createStoreSchema = z.object({
   name: z.string().trim().min(3).max(80),
   slug: z
@@ -14,18 +20,23 @@ export const createStoreSchema = z.object({
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'slug must be lowercase, alphanumeric, hyphen-separated'),
   tagline: z.string().trim().max(140).optional(),
   description: z.string().trim().max(2000).optional(),
-});
-
-export const updateStoreSchema = createStoreSchema.partial().omit({ slug: true }).extend({
-  bannerUrl: z.string().url().optional(),
-  logoUrl: z.string().url().optional(),
-});
-
-export const updateStoreProfileSchema = updateStoreSchema.extend({
+  bannerUrl: httpUrl.optional(),
+  logoUrl: httpUrl.optional(),
   pacraNumber: z.string().trim().max(40).optional(),
   tpin: z.string().trim().max(40).optional(),
   payoutPhone: z.string().trim().max(20).optional(),
   payoutMethod: z.enum(['AIRTEL_MONEY', 'MTN_MOMO', 'CARD']).optional(),
+});
+
+export const updateStoreSchema = createStoreSchema.partial().omit({ slug: true });
+
+export const updateStoreProfileSchema = updateStoreSchema;
+
+export const createReelSchema = z.object({
+  streamUid: z.string().trim().min(1).max(64),
+  caption: z.string().trim().max(500).optional(),
+  productId: z.string().cuid().optional(),
+  thumbnailUrl: httpUrl.optional(),
 });
 
 export const reviewReplySchema = z.object({
@@ -41,7 +52,7 @@ const productVariantInput = z.object({
 });
 
 const productImageInput = z.object({
-  url: z.string().url(),
+  url: httpUrl,
   altText: z.string().trim().max(140).optional(),
   sortOrder: z.number().int().nonnegative().default(0),
 });

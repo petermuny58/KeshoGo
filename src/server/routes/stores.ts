@@ -5,6 +5,7 @@ import { prisma } from '../../db.js';
 import { requireAuth, requireSeller, type AppVariables } from '../middleware/auth.js';
 import { createStoreSchema, updateStoreSchema } from '../lib/schemas.js';
 import { isUniqueConstraintError } from '../lib/prisma-errors.js';
+import { resolveStoreStatusAfterProfileUpdate } from '../lib/store-status.js';
 
 export const storesRoute = new Hono<{ Variables: AppVariables }>();
 
@@ -19,9 +20,17 @@ storesRoute.post('/', requireAuth, zValidator('json', createStoreSchema), async 
     throw new HTTPException(409, { message: 'This account already has a store.' });
   }
 
+  const status = resolveStoreStatusAfterProfileUpdate({
+    name: input.name,
+    bannerUrl: input.bannerUrl,
+    payoutPhone: input.payoutPhone,
+    payoutMethod: input.payoutMethod,
+    status: 'PENDING',
+  });
+
   try {
     const store = await prisma.store.create({
-      data: { ...input, ownerId: user.id },
+      data: { ...input, ownerId: user.id, status },
     });
     return c.json(store, 201);
   } catch (err) {

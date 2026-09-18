@@ -15,24 +15,28 @@ export function StoreHeader({ store, productCount }: StoreHeaderProps) {
   const [following, setFollowing] = useState(false);
   const { showToast } = useToast();
   const tone = getPlaceholderTone(store.id);
-  const coverPhotoId = getProductPhotoId(store.categorySlug, store.id, 0);
+  const coverPhotoId = store.bannerUrl ? null : getProductPhotoId(store.categorySlug, store.id, 0);
+  const bannerStyle = store.bannerUrl
+    ? { backgroundImage: `url(${store.bannerUrl})` }
+    : {
+        backgroundColor: tone.bg,
+        ...(coverPhotoId ? { backgroundImage: `url(${buildImageUrl(coverPhotoId, 1000)})` } : {}),
+      };
 
   return (
     <div className="border-b border-border-soft bg-white">
-      <div
-        className="h-28 bg-cover bg-center sm:h-36"
-        style={{
-          backgroundColor: tone.bg,
-          ...(coverPhotoId ? { backgroundImage: `url(${buildImageUrl(coverPhotoId, 1000)})` } : {}),
-        }}
-      />
+      <div className="h-28 bg-cover bg-center sm:h-36" style={bannerStyle} />
       <div className="mx-auto max-w-5xl px-4 pb-5 sm:px-6">
         <div className="-mt-8 flex items-end justify-between gap-3 sm:-mt-10">
           <div
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-4 border-white shadow-card sm:h-20 sm:w-20"
+            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white shadow-card sm:h-20 sm:w-20"
             style={{ backgroundColor: tone.fg }}
           >
-            <StoreIcon size={28} className="text-white" />
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <StoreIcon size={28} className="text-white" />
+            )}
           </div>
           <button
             type="button"

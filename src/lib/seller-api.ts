@@ -79,6 +79,30 @@ export interface CreatedStore {
   tagline: string | null;
 }
 
+export interface SellerReel {
+  id: string;
+  streamUid: string;
+  videoUrl: string;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  productId: string | null;
+  likeCount: number;
+  createdAt: string;
+}
+
+export interface StoreProfile {
+  name: string;
+  tagline: string | null;
+  description: string | null;
+  bannerUrl: string | null;
+  logoUrl: string | null;
+  pacraNumber: string | null;
+  tpin: string | null;
+  payoutPhone: string | null;
+  payoutMethod: string | null;
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED';
+}
+
 const mockProduct = (): SellerProduct => ({
   id: 'prod_mock_1',
   title: 'Mock T-Shirt',
@@ -121,7 +145,20 @@ const mockSellerApi = {
     }),
   getEarningsHistory: (page = 1) => delay({ entries: [], total: 0 }),
   getAnalytics: (range = '6m') => delay({ profitSeries: [], buyerSeries: [], topProducts: [] }),
-  updateProfile: (body: unknown) => delay(undefined),
+  updateProfile: (body: unknown) =>
+    delay({
+      name: 'Mock Store',
+      tagline: null,
+      description: null,
+      bannerUrl: null,
+      logoUrl: null,
+      pacraNumber: null,
+      tpin: null,
+      payoutPhone: null,
+      payoutMethod: null,
+      status: 'PENDING' as const,
+      ...(typeof body === 'object' && body ? (body as object) : {}),
+    } as StoreProfile),
   getProfile: () =>
     delay({
       name: 'Mock Store',
@@ -133,11 +170,16 @@ const mockSellerApi = {
       tpin: null,
       payoutPhone: null,
       payoutMethod: null,
-    }),
-  presignUpload: (filename: string, contentType: string, folder: 'products' | 'store' = 'products') =>
-    delay({ key: 'mock/key', uploadUrl: null, publicUrl: '/public/mock-product.png', devMode: true }),
+      status: 'PENDING' as const,
+    } as StoreProfile),
+  presignUpload: (_filename: string, _contentType: string, _folder: 'products' | 'store' = 'products') =>
+    delay({ key: 'mock/key', uploadUrl: null as string | null, publicUrl: '/public/mock-product.png', devMode: true }),
   listCategories: () => delay([{ id: 'cat_mock', slug: 'mock', name: 'Mock' }]),
-} as const;
+  createReelUploadUrl: () => delay({ uploadURL: '', uid: 'mock-stream-uid', devMode: true }),
+  listReels: () => delay({ reels: [] as SellerReel[] }),
+  createReel: (_body: unknown) => delay({} as SellerReel),
+  deleteReel: (_id: string) => delay(undefined),
+};
 
 const realSellerApi = {
   getStore: () => apiFetch<{ id: string; name: string; slug: string }>('/api/seller/stores/me'),
@@ -196,20 +238,10 @@ const realSellerApi = {
       topProducts: { title: string; units: number; revenueNgwee: number }[];
     }>(`/api/seller/analytics?range=${range}`),
 
-  updateProfile: (body: unknown) => apiFetch('/api/seller/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  updateProfile: (body: unknown) =>
+    apiFetch<StoreProfile>('/api/seller/profile', { method: 'PATCH', body: JSON.stringify(body) }),
 
-  getProfile: () =>
-    apiFetch<{
-      name: string;
-      tagline: string | null;
-      description: string | null;
-      bannerUrl: string | null;
-      logoUrl: string | null;
-      pacraNumber: string | null;
-      tpin: string | null;
-      payoutPhone: string | null;
-      payoutMethod: string | null;
-    }>('/api/seller/profile'),
+  getProfile: () => apiFetch<StoreProfile>('/api/seller/profile'),
 
   presignUpload: (filename: string, contentType: string, folder: 'products' | 'store' = 'products') =>
     apiFetch<{ key: string; uploadUrl: string | null; publicUrl: string; devMode: boolean }>(
@@ -218,6 +250,19 @@ const realSellerApi = {
     ),
 
   listCategories: () => apiFetch<{ categories: CategoryOption[] }>('/api/categories').then((r) => r.categories),
+
+  createReelUploadUrl: () =>
+    apiFetch<{ uploadURL: string; uid: string; devMode?: boolean }>('/api/seller/reels/upload-url', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  listReels: () => apiFetch<{ reels: SellerReel[] }>('/api/seller/reels'),
+
+  createReel: (body: { streamUid: string; caption?: string; productId?: string; thumbnailUrl?: string }) =>
+    apiFetch<SellerReel>('/api/seller/reels', { method: 'POST', body: JSON.stringify(body) }),
+
+  deleteReel: (id: string) => apiFetch<void>(`/api/seller/reels/${id}`, { method: 'DELETE' }),
 };
 
 export const sellerApi = useMock ? mockSellerApi : realSellerApi;

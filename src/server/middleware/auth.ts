@@ -17,33 +17,56 @@ export type AppVariables = {
  * for app data, Clerk is only ever asked for identity.
  */
 export const requireAuth = createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
-  const auth = getAuth(c);
-  if (!auth?.userId) {
-    throw new HTTPException(401, { message: 'Sign in required.' });
+  // Development helper: allow a dev-only header to impersonate a Clerk user
+  // so local testing doesn't require a full Clerk session. This is enabled
+  // only when NODE_ENV=development and a `x-dev-clerk-id` header is present.
+  const devClerkId = process.env.NODE_ENV === 'development' ? c.req.header('x-dev-clerk-id') : undefined;
+
+  let userId: string | undefined;
+  if (devClerkId) {
+    userId = devClerkId;
+  } else {
+    const auth = getAuth(c);
+    if (!auth?.userId) {
+      throw new HTTPException(401, { message: 'Sign in required.' });
+    }
+    userId = auth.userId;
   }
 
-  let user = await prisma.user.findUnique({ where: { clerkId: auth.userId } });
+  let user = await prisma.user.findUnique({ where: { clerkId: userId } });
 
   if (!user) {
-    // Webhook hasn't landed yet — pull identity from Clerk directly rather
-    // than blocking a legitimately authenticated request on webhook timing.
-    const clerkClient = c.get('clerk');
-    const clerkUser = await clerkClient.users.getUser(auth.userId);
-    const phone = clerkUser.phoneNumbers[0]?.phoneNumber;
-    if (!phone) {
-      throw new HTTPException(400, { message: 'Account has no phone number on file.' });
+    if (devClerkId) {
+      // Create a minimal local dev user record without calling Clerk.
+      user = await prisma.user.create({
+        data: {
+          clerkId: userId!,
+          phone: `dev-${userId}`,
+          email: null,
+          fullName: 'Dev User',
+        },
+      });
+    } else {
+      // Webhook hasn't landed yet — pull identity from Clerk directly rather
+      // than blocking a legitimately authenticated request on webhook timing.
+      const clerkClient = c.get('clerk');
+      const clerkUser = await clerkClient.users.getUser(userId!);
+      const phone = clerkUser.phoneNumbers[0]?.phoneNumber;
+      if (!phone) {
+        throw new HTTPException(400, { message: 'Account has no phone number on file.' });
+      }
+      user = await prisma.user.upsert({
+        where: { clerkId: userId! },
+        update: {},
+        create: {
+          clerkId: userId!,
+          phone,
+          email: clerkUser.emailAddresses[0]?.emailAddress,
+          fullName: `${clerkUser.firstName ?? ''} ${clerkUser.lastName ?? ''}`.trim() || 'KeshoGo User',
+          avatarUrl: clerkUser.imageUrl,
+        },
+      });
     }
-    user = await prisma.user.upsert({
-      where: { clerkId: auth.userId },
-      update: {},
-      create: {
-        clerkId: auth.userId,
-        phone,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        fullName: `${clerkUser.firstName ?? ''} ${clerkUser.lastName ?? ''}`.trim() || 'KeshoGo User',
-        avatarUrl: clerkUser.imageUrl,
-      },
-    });
   }
 
   c.set('user', user);
@@ -58,7 +81,16 @@ export const requireAuth = createMiddleware<{ Variables: AppVariables }>(async (
  */
 export const requireSeller = createMiddleware<{ Variables: AppVariables }>(async (c, next) => {
   const user = c.get('user');
-  const store = await prisma.store.findUnique({ where: { ownerId: user.id } });
+  let store = await prisma.store.findUnique({ where: { ownerId: user.id } });
+  // Development helper: auto-create a store for local dev when a dev clerk
+  // header is present so the frontend can exercise seller flows without
+  // going through the UI create-store step. Only active in development.
+  const devClerkId = process.env.NODE_ENV === 'development' ? c.req.header('x-dev-clerk-id') : undefined;
+  if (!store && devClerkId) {
+    store = await prisma.store.create({
+      data: { ownerId: user.id, name: 'Dev Store', slug: `dev-store-${user.id.slice(0,6)}`, status: 'ACTIVE' },
+    });
+  }
   if (!store) {
     throw new HTTPException(403, { message: 'No store found for this account. Create one first.' });
   }

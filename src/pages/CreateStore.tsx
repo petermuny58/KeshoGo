@@ -107,6 +107,7 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
   const [category, setCategory] = useState(categories[0]?.slug ?? '');
   const [description, setDescription] = useState('');
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(false);
@@ -115,6 +116,7 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
   const [checkingExisting, setCheckingExisting] = useState(isSignedIn);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSubmitRef = useRef(false);
+  const bannerFileRef = useRef<File | null>(null);
 
   useEffect(() => {
     const draft = loadDraft();
@@ -150,6 +152,21 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
     };
   }, [isSignedIn, navigate]);
 
+  async function uploadBannerIfPresent(): Promise<string | undefined> {
+    const file = bannerFileRef.current ?? bannerFile;
+    if (!file) return undefined;
+    const presign = await sellerApi.presignUpload(file.name, file.type, 'store');
+    if (presign.uploadUrl) {
+      const put = await fetch(presign.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      if (!put.ok) throw new Error('Banner upload failed. Check R2 configuration.');
+    }
+    return presign.publicUrl;
+  }
+
   async function createStoreFromForm(draft?: StoreDraft) {
     const name = (draft?.storeName ?? storeName).trim();
     const desc = (draft?.description ?? description).trim();
@@ -169,13 +186,25 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
         description: desc,
         tagline: categories.find((c) => c.slug === cat)?.name,
       });
+
+      let uploadedBanner: string | undefined;
+      try {
+        uploadedBanner = await uploadBannerIfPresent();
+        if (uploadedBanner) {
+          await sellerApi.updateProfile({ bannerUrl: uploadedBanner });
+        }
+      } catch {
+        // Store exists; seller can finish banner in settings.
+      }
+
       clearDraft();
       setStoreName(name);
       setCreatedSlug(store.slug);
       setSubmitted(true);
 
       if (isSignedIn) {
-        navigate('/dashboard', { replace: true });
+        // Finish banner + credentials in settings so the store can go ACTIVE.
+        navigate('/dashboard/settings', { replace: true });
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -207,9 +236,9 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
   function handleBannerChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setBannerPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    setBannerFile(file);
+    bannerFileRef.current = file;
+    setBannerPreview(URL.createObjectURL(file));
   }
 
   const canSubmit = storeName.trim().length >= 3 && description.trim().length >= 10;
@@ -252,16 +281,16 @@ function CreateStoreForm({ isSignedIn }: { isSignedIn: boolean }) {
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <CircleCheck size={30} className="text-primary" />
         </div>
-        <h1 className="mt-4 text-xl font-semibold text-graphite">{storeName} is live</h1>
+        <h1 className="mt-4 text-xl font-semibold text-graphite">{storeName} is ready</h1>
         <p className="mt-1.5 text-sm text-graphite-muted">
-          Your storefront is ready. Open the seller dashboard to add products and start selling.
+          Finish your banner and business credentials in settings so shoppers can find your store.
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
           <Link
-            to="/dashboard"
+            to="/dashboard/settings"
             className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark"
           >
-            Go to dashboard
+            Complete store profile
           </Link>
           {createdSlug && (
             <Link

@@ -1,17 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Share2, Volume2, VolumeX, Play, ShoppingBag, X, Store as StoreIcon } from 'lucide-react';
-import type { Reel } from '../../types';
-import { products } from '../../data/products';
-import { getStoreById } from '../../data/stores';
-import { ProductImage } from '../product/ProductImage';
-import { getPlaceholderTone } from '../../utils/placeholder';
+import type { CatalogReel } from '../../lib/catalog-api';
+import { catalogApi } from '../../lib/catalog-api';
 import { formatZmw } from '../../utils/currency';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 
 interface ReelCardProps {
-  reel: Reel;
+  reel: CatalogReel;
   isActive: boolean;
   muted: boolean;
   onToggleMute: () => void;
@@ -19,42 +16,54 @@ interface ReelCardProps {
 
 export function ReelCard({ reel, isActive, muted, onToggleMute }: ReelCardProps) {
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(reel.likes);
   const [tagOpen, setTagOpen] = useState(false);
   const { addToCart } = useCart();
   const { showToast } = useToast();
+  const product = reel.product;
+  const store = reel.store;
 
-  const product = products.find((p) => p.id === reel.productId);
-  const store = getStoreById(reel.storeId);
-  const tone = getPlaceholderTone(reel.id);
-
-  if (!product || !store) return null;
+  async function handleLike() {
+    try {
+      const result = await catalogApi.toggleReelLike(reel.id);
+      setLiked(result.liked);
+      setLikeCount(result.likeCount);
+    } catch {
+      setLiked((v) => !v);
+      setLikeCount((c) => c + (liked ? -1 : 1));
+      showToast('Sign in to like reels', 'default');
+    }
+  }
 
   return (
     <div className="relative h-full w-full snap-start overflow-hidden bg-graphite">
-      {/* Placeholder "video" surface */}
-      <div
-        className="absolute inset-0 flex items-center justify-center"
-        style={{ background: `linear-gradient(160deg, ${tone.bg} 0%, ${tone.fg}22 100%)` }}
-      >
-        <ProductImage
-          productId={product.id}
-          categorySlug={product.categorySlug}
-          className="h-full w-full"
-          iconClassName="h-1/4 w-1/4 opacity-90"
+      {isActive ? (
+        <iframe
+          title={reel.caption ?? 'Reel'}
+          src={`${reel.iframeUrl}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`}
+          className="absolute inset-0 h-full w-full border-0"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+          allowFullScreen
         />
-      </div>
-
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
-
-      {!isActive && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/25 backdrop-blur-sm">
-            <Play size={26} className="ml-1 fill-white text-white" />
+      ) : (
+        <div className="absolute inset-0">
+          {reel.thumbnailUrl ? (
+            <img src={reel.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full items-center justify-center bg-graphite">
+              <Play size={26} className="fill-white text-white" />
+            </div>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/25 backdrop-blur-sm">
+              <Play size={26} className="ml-1 fill-white text-white" />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Mute toggle */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30" />
+
       <button
         type="button"
         onClick={onToggleMute}
@@ -64,11 +73,10 @@ export function ReelCard({ reel, isActive, muted, onToggleMute }: ReelCardProps)
         {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
       </button>
 
-      {/* Right action rail */}
       <div className="absolute bottom-24 right-3 flex flex-col items-center gap-5 sm:bottom-8">
         <button
           type="button"
-          onClick={() => setLiked((v) => !v)}
+          onClick={() => void handleLike()}
           aria-pressed={liked}
           aria-label="Like this reel"
           className="flex flex-col items-center gap-1 text-white"
@@ -76,12 +84,15 @@ export function ReelCard({ reel, isActive, muted, onToggleMute }: ReelCardProps)
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
             <Heart size={22} className={liked ? 'fill-secondary text-secondary' : ''} />
           </span>
-          <span className="text-xs font-medium">{(reel.likes + (liked ? 1 : 0)).toLocaleString()}</span>
+          <span className="text-xs font-medium">{likeCount.toLocaleString()}</span>
         </button>
 
         <button
           type="button"
-          onClick={() => showToast('Share link copied', 'success')}
+          onClick={() => {
+            void navigator.clipboard?.writeText(`${window.location.origin}/reels`);
+            showToast('Share link copied', 'success');
+          }}
           aria-label="Share this reel"
           className="flex flex-col items-center gap-1 text-white"
         >
@@ -91,32 +102,36 @@ export function ReelCard({ reel, isActive, muted, onToggleMute }: ReelCardProps)
           <span className="text-xs font-medium">Share</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setTagOpen(true)}
-          aria-label={`View product: ${product.title}`}
-          className="flex flex-col items-center gap-1 text-white"
-        >
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
-            <ShoppingBag size={20} />
-          </span>
-          <span className="text-xs font-medium">Shop</span>
-        </button>
+        {product && (
+          <button
+            type="button"
+            onClick={() => setTagOpen(true)}
+            aria-label={`View product: ${product.title}`}
+            className="flex flex-col items-center gap-1 text-white"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
+              <ShoppingBag size={20} />
+            </span>
+            <span className="text-xs font-medium">Shop</span>
+          </button>
+        )}
       </div>
 
-      {/* Bottom info */}
       <div className="absolute inset-x-0 bottom-16 px-4 pr-16 text-white sm:bottom-6">
         <Link to={`/store/${store.slug}`} className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
-            <StoreIcon size={14} />
+          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-white/20">
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <StoreIcon size={14} />
+            )}
           </span>
           <span className="text-sm font-semibold">{store.name}</span>
         </Link>
-        <p className="mt-2 line-clamp-2 text-sm text-white/95">{reel.caption}</p>
+        {reel.caption && <p className="mt-2 line-clamp-2 text-sm text-white/95">{reel.caption}</p>}
       </div>
 
-      {/* Product tag mini add-to-cart */}
-      {tagOpen && (
+      {tagOpen && product && (
         <div className="absolute inset-x-3 bottom-20 rounded-2xl bg-white p-3 shadow-float sm:inset-x-auto sm:bottom-8 sm:left-4 sm:w-72">
           <button
             type="button"
@@ -127,12 +142,11 @@ export function ReelCard({ reel, isActive, muted, onToggleMute }: ReelCardProps)
             <X size={15} />
           </button>
           <div className="flex gap-3 pr-4">
-            <ProductImage
-              productId={product.id}
-              categorySlug={product.categorySlug}
-              className="h-16 w-16 shrink-0 rounded-xl"
-              iconClassName="h-6 w-6"
-            />
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-dim">
+              {product.imageUrl ? (
+                <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
+              ) : null}
+            </div>
             <div className="min-w-0">
               <Link to={`/product/${product.slug}`} className="line-clamp-2 text-sm font-medium text-graphite hover:underline">
                 {product.title}

@@ -1,4 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { buyerApi } from '../lib/buyer-api';
+import { ApiError } from '../lib/api';
 
 interface WishlistContextValue {
   wishlistIds: string[];
@@ -11,16 +13,36 @@ const WishlistContext = createContext<WishlistContextValue | null>(null);
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
 
+  useEffect(() => {
+    buyerApi
+      .getWishlist()
+      .then((data) => setWishlistIds(data.productIds))
+      .catch((err) => {
+        if (!(err instanceof ApiError && err.status === 401)) {
+          /* ignore */
+        }
+      });
+  }, []);
+
+  const toggleWishlist = useCallback((productId: string) => {
+    setWishlistIds((prev) => {
+      const exists = prev.includes(productId);
+      if (exists) {
+        void buyerApi.removeWishlist(productId).catch(() => {});
+        return prev.filter((id) => id !== productId);
+      }
+      void buyerApi.addWishlist(productId).catch(() => {});
+      return [...prev, productId];
+    });
+  }, []);
+
   const value = useMemo<WishlistContextValue>(
     () => ({
       wishlistIds,
       isWishlisted: (productId: string) => wishlistIds.includes(productId),
-      toggleWishlist: (productId: string) =>
-        setWishlistIds((prev) =>
-          prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId],
-        ),
+      toggleWishlist,
     }),
-    [wishlistIds],
+    [wishlistIds, toggleWishlist],
   );
 
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;

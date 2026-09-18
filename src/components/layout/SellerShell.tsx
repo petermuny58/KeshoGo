@@ -1,5 +1,15 @@
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingBag, Settings, Store, Banknote, BarChart3, MessageSquare } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  Settings,
+  Store,
+  Banknote,
+  BarChart3,
+  MessageSquare,
+  Clapperboard,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AppUserButton } from '../auth/AppUserButton';
 import { Logo } from '../common/Logo';
@@ -15,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/dashboard/products', label: 'Products', icon: Package },
   { to: '/dashboard/orders', label: 'Orders', icon: ShoppingBag },
+  { to: '/dashboard/reels', label: 'Reels', icon: Clapperboard },
   { to: '/dashboard/earnings', label: 'Earnings', icon: Banknote },
   { to: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/dashboard/reviews', label: 'Reviews', icon: MessageSquare },
@@ -82,7 +93,7 @@ export function SellerShell() {
 
       {/* Mobile Bottom Nav */}
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-border-soft bg-white lg:hidden">
-        <ul className="grid grid-cols-4 overflow-x-auto sm:grid-cols-7">
+        <ul className="grid grid-cols-4 overflow-x-auto sm:grid-cols-8">
           {NAV_ITEMS.map((item) => (
             <li key={item.to} className="min-w-0">
               <NavLink

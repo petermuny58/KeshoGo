@@ -34,6 +34,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <ProductImage
           productId={product.id}
           categorySlug={product.categorySlug}
+          src={product.imageUrl}
           className="h-full w-full"
           iconClassName="h-1/3 w-1/3 transition-transform duration-300 group-hover:scale-110"
         />

@@ -40,6 +40,7 @@ export interface Product {
   storeId: string;
   description: string;
   imageCount: number;
+  imageUrl?: string | null;
   colors: string[];
   sizes: string[];
   badge: ProductBadge;
@@ -58,14 +59,21 @@ export interface Store {
   rating: number;
   followers: number;
   verified: boolean;
+  bannerUrl?: string | null;
+  logoUrl?: string | null;
+  description?: string | null;
 }
 
 export interface Reel {
   id: string;
-  productId: string;
+  productId: string | null;
   storeId: string;
-  caption: string;
+  caption: string | null;
   likes: number;
+  streamUid?: string;
+  videoUrl?: string;
+  thumbnailUrl?: string | null;
+  iframeUrl?: string;
 }
 
 export interface Promotion {
@@ -82,6 +90,7 @@ export interface CartLine {
   quantity: number;
   color?: string;
   size?: string;
+  variantId?: string;
 }
 
 export type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'rating' | 'newest';

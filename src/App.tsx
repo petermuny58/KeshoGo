@@ -24,6 +24,7 @@ import { SellerEarnings } from './pages/dashboard/SellerEarnings';
 import { SellerAnalytics } from './pages/dashboard/SellerAnalytics';
 import { SellerReviews } from './pages/dashboard/SellerReviews';
 import { SellerSettings } from './pages/dashboard/SellerSettings';
+import { SellerReels } from './pages/dashboard/SellerReels';
 
 function NotFound() {
   return (
@@ -68,6 +69,7 @@ export function App() {
         <Route path="earnings" element={<SellerEarnings />} />
         <Route path="analytics" element={<SellerAnalytics />} />
         <Route path="reviews" element={<SellerReviews />} />
+        <Route path="reels" element={<SellerReels />} />
         <Route path="settings" element={<SellerSettings />} />
       </Route>
     </Routes>

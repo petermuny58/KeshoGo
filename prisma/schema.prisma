@@ -417,7 +417,8 @@ model Reel {
   store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   productId    String?
   product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  videoUrl     String // Cloudflare R2 object URL
+  streamUid    String   @unique // Cloudflare Stream video UID
+  videoUrl     String // HLS / playback URL derived from Stream
   thumbnailUrl String?
   caption      String?
   likeCount    Int      @default(0) // denormalized cache of ReelLike rows — see README
