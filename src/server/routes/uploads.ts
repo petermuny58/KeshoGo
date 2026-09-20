@@ -35,13 +35,12 @@ function publicUrlForKey(key: string): string {
 uploadsRoute.post(
   '/presign',
   requireAuth,
-  requireSeller,
   zValidator('json', presignSchema),
   async (c) => {
-    const store = c.get('store');
+    const user = c.get('user');
     const { filename, contentType, folder } = c.req.valid('json');
     const ext = filename.includes('.') ? filename.slice(filename.lastIndexOf('.')) : '';
-    const key = `${folder}/${store.id}/${randomUUID()}${ext}`;
+    const key = `${folder}/${user.id}/${randomUUID()}${ext}`;
 
     const client = r2Client();
     const bucket = process.env.R2_BUCKET_NAME;
