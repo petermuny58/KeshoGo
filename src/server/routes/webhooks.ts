@@ -21,8 +21,8 @@ webhooksRoute.post('/clerk', async (c) => {
     case 'user.created':
     case 'user.updated': {
       const u = event.data;
-      const phone = u.phone_numbers?.[0]?.phone_number;
-      if (!phone) break; // nothing we can key a User row on yet — requireAuth's lazy-create will retry once a phone exists
+      const phone = u.phone_numbers?.[0]?.phone_number || `no-phone-${u.id}`;
+
       await prisma.user.upsert({
         where: { clerkId: u.id },
         update: {

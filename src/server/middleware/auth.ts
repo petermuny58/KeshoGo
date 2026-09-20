@@ -51,10 +51,8 @@ export const requireAuth = createMiddleware<{ Variables: AppVariables }>(async (
       // than blocking a legitimately authenticated request on webhook timing.
       const clerkClient = c.get('clerk');
       const clerkUser = await clerkClient.users.getUser(userId!);
-      const phone = clerkUser.phoneNumbers[0]?.phoneNumber;
-      if (!phone) {
-        throw new HTTPException(400, { message: 'Account has no phone number on file.' });
-      }
+      const phone = clerkUser.phoneNumbers[0]?.phoneNumber || `no-phone-${userId}`;
+
       user = await prisma.user.upsert({
         where: { clerkId: userId! },
         update: {},
