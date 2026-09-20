@@ -56,9 +56,11 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong.' }, 500);
 });
 
-const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`KeshoGo API listening on http://localhost:${info.port}`);
-});
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT ?? 8787);
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`KeshoGo API listening on http://localhost:${info.port}`);
+  });
+}
 
 export { app };
