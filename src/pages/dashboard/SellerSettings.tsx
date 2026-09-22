@@ -4,6 +4,9 @@ import { ImagePlus, Store } from 'lucide-react';
 import { sellerApi } from '../../lib/seller-api';
 import { useToast } from '../../context/ToastContext';
 
+import { ApiError } from '../../lib/api';
+import { Link } from 'react-router-dom';
+
 interface StoreProfile {
   name: string;
   tagline: string | null;
@@ -31,6 +34,8 @@ export function SellerSettings() {
   const [status, setStatus] = useState<StoreProfile['status']>('PENDING');
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [noStore, setNoStore] = useState(false);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -48,8 +53,15 @@ export function SellerSettings() {
         setBannerUrl(profile.bannerUrl);
         setStatus(profile.status);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setNoStore(true);
+        } else {
+          showToast('Could not load store profile', 'error');
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [showToast]);
 
   async function handleBannerChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -70,7 +82,12 @@ export function SellerSettings() {
       setBannerPreview(presign.publicUrl);
       setBannerUrl(presign.publicUrl);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Banner upload failed', 'error');
+      const msg = err instanceof Error ? err.message : 'Banner upload failed';
+      if (msg.includes('Failed to fetch') || msg.includes('CORS') || err instanceof TypeError) {
+        showToast('Banner upload blocked by Cloudflare R2 CORS policy. Set CORS origins on your R2 bucket.', 'error');
+      } else {
+        showToast(msg, 'error');
+      }
     } finally {
       setUploadingBanner(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -107,6 +124,34 @@ export function SellerSettings() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-md p-6 lg:p-8 text-center text-sm text-graphite-muted">
+        Loading store settings…
+      </div>
+    );
+  }
+
+  if (noStore) {
+    return (
+      <div className="mx-auto max-w-md p-6 lg:p-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <Store size={28} className="text-primary" />
+        </div>
+        <h1 className="mt-4 text-xl font-semibold text-graphite">No Store Found</h1>
+        <p className="mt-2 text-sm text-graphite-muted">
+          You haven&apos;t opened a store on KeshoGo yet. Create a store first to access your seller settings.
+        </p>
+        <Link
+          to="/create-store"
+          className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary-dark"
+        >
+          Open Your Store
+        </Link>
+      </div>
+    );
   }
 
   return (
