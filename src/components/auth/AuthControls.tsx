@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import { AppUserButton } from './AppUserButton';
 
-const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.CLERK_PUBLISHABLE_KEY);
 
 export function AuthControls() {
   if (!hasClerk) return null;

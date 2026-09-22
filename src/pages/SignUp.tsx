@@ -3,7 +3,7 @@ import { SignUp as ClerkSignUp } from '@clerk/clerk-react';
 import { Logo } from '../components/common/Logo';
 import { clerkAppearance } from '../components/auth/clerkAppearance';
 
-const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.CLERK_PUBLISHABLE_KEY);
 
 function safeRedirect(raw: string | null): string {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/';

@@ -7,7 +7,7 @@ import { categories } from '../data/categories';
 import { sellerApi } from '../lib/seller-api';
 import { ApiError } from '../lib/api';
 
-const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.CLERK_PUBLISHABLE_KEY);
 const DRAFT_KEY = 'keshogo:create-store-draft';
 const AUTH_REDIRECT = '/create-store?resume=1';
 

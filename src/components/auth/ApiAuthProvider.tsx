@@ -3,7 +3,7 @@ import { ClerkProvider, useAuth } from '@clerk/clerk-react';
 import { setApiTokenGetter } from '../../lib/api';
 import { clerkAppearance } from './clerkAppearance';
 
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.CLERK_PUBLISHABLE_KEY;
 
 function TokenBridge({ children }: { children: React.ReactNode }) {
   const { getToken } = useAuth();

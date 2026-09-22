@@ -3,7 +3,7 @@ import { SignIn } from '@clerk/clerk-react';
 import { Logo } from '../components/common/Logo';
 import { clerkAppearance } from '../components/auth/clerkAppearance';
 
-const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerk = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.CLERK_PUBLISHABLE_KEY);
 
 export function Login() {
   if (!hasClerk) {
